@@ -120,7 +120,7 @@ rail_passengers_Q = (df1.groupby(["country", "quarter"])["rail_passengers"].mean
 
 # rail passengers per capita (teodros)
 rail_passengers_Q = rail_passengers_Q * 1000
-rail_passengers_per_capita_Q = rail_passengers_Q / population_Q
+rail_passengers_per_capita_Q = rail_passengers_Q / population_Q # this value is the number of trips per person per quarter
 
 print(rail_passengers_per_capita_Q.head())
 
