@@ -21,8 +21,79 @@ print("Is there a merge conflict?")
 #the rest of the datasets (reminder to do rail passengers/population)
 #YOUR_CODE_HERE (teodros)
 
-#map of countries used 
-#YOUR_CODE_HERE (mika)
+# map of countries used
+# YOUR_CODE_HERE (mika)
+
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+url = (
+    "https://raw.githubusercontent.com/nvkelso/"
+    "natural-earth-vector/master/geojson/"
+    "ne_110m_admin_0_countries.geojson"
+)
+
+world = gpd.read_file(url)
+
+selected_countries = [
+    "Bulgaria",
+    "Czech Republic",
+    "Denmark",
+    "Germany",
+    "Estonia",
+    "Ireland",
+    "Greece",
+    "Spain",
+    "France",
+    "Croatia",
+    "Italy",
+    "Latvia",
+    "Lithuania",
+    "Luxembourg",
+    "Netherlands",
+    "Poland",
+    "Portugal",
+    "Romania",
+    "Slovenia",
+    "Slovakia",
+    "Finland",
+    "Sweden"
+]
+
+selected = world[world["NAME_EN"].isin(selected_countries)]
+
+print("Number of selected countries:", len(selected))
+
+fig, ax = plt.subplots(figsize=(12, 9))
+
+world.plot(
+    ax=ax,
+    color="lightgrey",
+    edgecolor="white",
+    linewidth=0.6
+)
+
+selected.plot(
+    ax=ax,
+    color="steelblue",
+    edgecolor="black",
+    linewidth=0.8
+)
+
+ax.set_xlim(-12, 40)
+ax.set_ylim(34, 72)
+
+ax.set_title(
+    "Selected European Countries",
+    fontsize=18,
+    fontweight="bold",
+    pad=15
+)
+
+ax.set_axis_off()
+
+plt.tight_layout()
+plt.show()
 
 #timeseries graphs for rail passenger data (per country?)
 #YOUR_CODE_HERE
