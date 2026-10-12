@@ -201,13 +201,58 @@ ax.set_axis_off()
 plt.tight_layout()
 plt.show()
 
-#timeseries graphs for rail passenger data (per country?)
-#YOUR_CODE_HERE
+#timeseries graphs for rail passenger data and fuel prices (per country)
+import plotly.graph_objects as go
+import plotly.io as pio
 
+def plot_interactive_timeseries(df, title="Time Series Overview (2006 - 2025)", y_axis_title="Waarde", renderer="jupyterlab"):
 
-#timeseries graphs for fuel prices (per country?)
-#YOUR_CODE_HERE
+    pio.renderers.default = "browser"
+    if isinstance(df.columns, pd.PeriodIndex) or any("Q" in str(col) for col in df.columns):
+        df_plot = df.T.copy()
+    else:
+        df_plot = df.copy()
+    df_plot.index = df_plot.index.astype(str)
 
+   
+    fig = go.Figure()
+
+    # Background (grey lines
+    for country in df_plot.columns:
+        fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot[country], mode='lines', line=dict(color='#E5E7EB', width=1.5), hoverinfo='skip', showlegend=False))
+
+    # Interactive colored lines
+    for country in df_plot.columns:
+        fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot[country], mode='lines', name=str(country), line=dict(width=2.2), hovertemplate=f"<b>{country}</b>: %{{y:.2f}}<extra></extra>"))
+    
+    #Layout and interaction
+    n_countries = len(df_plot.columns)
+
+    fig.update_layout(title=dict(text=f"<b>{title}</b>", x=0.0, xanchor="left", y=0.96),
+        template="plotly_white", hovermode="closest",
+        xaxis=dict(title="Kwartaal", tickangle=-45, nticks=20, showgrid=True, gridcolor="#F3F4F6"),
+        yaxis=dict(title=y_axis_title, showgrid=True, gridcolor="#F3F4F6"),
+        legend=dict(title=dict(text="<b>Landen</b> (klik = aan/uit)<br><sub>Dubbelklik = isoleer</sub>"), itemclick="toggle", itemdoubleclick="toggleothers", traceorder="normal"),
+        updatemenus=[dict(type="buttons",direction="left", x=1.0, y=1.15, xanchor="right", yanchor="bottom",
+        buttons=[dict(label="Select everything", method="restyle", args=[{"visible": [True] * n_countries}, list(range(n_countries, 2 * n_countries))]), dict(label="Deselect everything", method="restyle",
+        args=[{"visible": ["legendonly"] * n_countries}, list(range(n_countries, 2 * n_countries))])])],
+        height=600,
+        margin=dict(l=60, r=100, t=100, b=60))
+
+    fig.show()
+
+# Use of timeseries functions
+plot_interactive_timeseries(
+    df=rail_passengers_per_capita_Q,
+    title="Rail Passenger Demand per Capita (2006 - 2025)",
+    y_axis_title="Passengers per Capita"
+)
+
+plot_interactive_timeseries(
+    df=real_fuel,
+    title="Real Fuel Prices per Country (Euro95)",
+    y_axis_title="Euro per Liter"
+)
 
 #...
 
