@@ -254,8 +254,27 @@ plot_interactive_timeseries(
     y_axis_title="Euro per Liter"
 )
 
-#...
+#Chloropleth maps function
+import plotly.express as px
 
+def plot_choropleth(data, color_scale="RdBu"):
+    data = data.reset_index()
+    data = data.rename(columns={"index": "countries"})
+
+    fig = px.choropleth(data, locations="country", locationmode="ISO-3", color=data.columns[1], color_continuous_scale=color_scale, scope="europe", title=data.columns[1], fitbounds="locations")
+    fig.update_geos(showland=True, landcolor="white")
+    fig.show()
+
+sample_data = pd.DataFrame({"correlation": [-0.45, 0.32, -0.18, 0.21, -0.56, 0.15, 0.42, -0.31, -0.12, 0.28, -0.37, 0.51, -0.24, 0.09, -0.41, -0.63, 0.34, -0.16, 0.25, -0.48, 0.11, -0.29]},index=["BG", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "IE", "IT", "LT", "LU", "LV", "NL", "PL", "PT", "RO", "SE", "SI", "SK"])
+import pycountry
+
+sample_data.index = sample_data.index.map(
+    lambda code: pycountry.countries.get(alpha_2=code).alpha_3
+)
+
+sample_data.index.name = "country"
+
+plot_choropleth(sample_data)
 #heatmaps with rail demand/population
 #YOUR_CODE_HERE
 
