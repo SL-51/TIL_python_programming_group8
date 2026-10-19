@@ -278,5 +278,78 @@ plot_choropleth(sample_data)
 #heatmaps with rail demand/population
 #YOUR_CODE_HERE
 
+# Historical response average change in rail demand - graph function
 
+import os
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
+quarters_all = pd.period_range("2006Q1", "2025Q4", freq="Q")
+
+# Defining event windows: periods, colors 
+events = {"2008 financial crisis": ("2008Q3", "2009Q4"), "2014 Crimea crisis": ("2014Q3", "2015Q1"), "COVID-19": ("2020Q1", "2022Q2"), "War in Ukraine": ("2022Q1", "2023Q4")}
+event_colors = {"2008 financial crisis": "tab:orange", "2014 Crimea crisis": "tab:green", "COVID-19": "tab:grey", "War in Ukraine": "tab:red"}
+event_periods = {name: (pd.Period(s), pd.Period(e)) for name, (s, e) in events.items()}
+
+# Consistent layout for all countries over all quarters
+fuel_nominal_Q = fuel_prices_Q.apply(pd.to_numeric, errors="coerce").reindex(index=country_codes, columns=quarters_all)
+price_index_Q = inflation_Q.reindex(index=country_codes, columns=quarters_all)
+rail_per_capita_Q = rail_passengers_per_capita_Q.reindex(index=country_codes, columns=quarters_all)
+pop_Q = population_Q.reindex(index=country_codes, columns=quarters_all)
+
+# Real fuel price calculation with price index base = 100
+real_fuel_Q = fuel_nominal_Q / (price_index_Q / 100) 
+
+# Year-over-year % change calculation
+rail_YoY = rail_per_capita_Q.T.pct_change(4, fill_method=None).T * 100
+fuel_YoY = real_fuel_Q.T.pct_change(4, fill_method=None).T * 100
+
+# Population-weighted average: weight = country population / total population; missing data = no weight
+def weighted_avg(values):
+    w = pop_Q.where(values.notna())
+    w = w / w.sum(axis=0)
+    return (values * w).sum(axis=0, min_count=1)
+
+# Mean for rail demand and oil price for all countries
+rail_mean = weighted_avg(rail_YoY)
+fuel_mean = weighted_avg(fuel_YoY)
+
+# Average rail change inside each event
+event_avg_rail = {}
+for name, (start, end) in event_periods.items():
+    in_event = (rail_mean.index >= start) & (rail_mean.index <= end)
+    event_avg_rail[name] = rail_mean[in_event].mean()
+    print(f"{name}: rail {event_avg_rail[name]:+.1f}%, fuel price {fuel_mean[in_event].mean():+.1f}%")
+
+# Graph specifications
+x_dates = rail_mean.index.to_timestamp()
+fig_hist, ax = plt.subplots(figsize=(13, 6.5))
+ax.plot(x_dates, rail_mean, color="blue", linewidth=3.5, label="Rail passengers per capita")
+ax.plot(x_dates, fuel_mean, color="red", linewidth=2.5, label="Real fuel price")
+ax.axhline(0, color="grey", linewidth=0.8)
+
+y_min, y_max = ax.get_ylim()
+ax.set_ylim(y_min, y_max + 0.4 * (y_max - y_min))
+
+# Crisis labels
+for i, (name, (start, end)) in enumerate(event_periods.items()):
+    ax.axvspan(start.start_time, end.end_time, color=event_colors[name], alpha=0.18)
+    ax.text(start.start_time, 0.97 - 0.10 * i, f"{name}\nrail {event_avg_rail[name]:+.1f}%", transform=ax.get_xaxis_transform(), ha="left", va="top", fontsize=9)
+    
+# Axis labels
+ax.set_ylabel("% change vs. same quarter last year")
+ax.set_title("Historic response of rail demand to major crises\n"
+             "(population-weighted average of 22 countries)", fontsize=13, fontweight="bold")
+
+# X-axis markers
+ax.xaxis.set_major_locator(mdates.YearLocator(1))
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+ax.grid(alpha=0.3)
+
+# Legend
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=2)
+
+plt.tight_layout()
+os.makedirs("output", exist_ok=True)
+fig_hist.savefig("output/rail_response_to_crises.png", dpi=200, bbox_inches="tight")
+plt.show()
