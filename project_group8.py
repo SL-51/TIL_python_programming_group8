@@ -1,6 +1,19 @@
-import pandas as pd
+#TIL6022 - TIL Python Programming Group Project - Group 8
 
-#datasets import
+#Import necessary packages
+import pandas as pd
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import plotly.io as pio
+import plotly.express as px
+import pycountry
+import numpy as np 
+import statsmodels.formula.api as smf
+import os
+import matplotlib.dates as mdates
+
+#Import datasets
 df1 = pd.read_csv('data/rail_passengers_quarters_2006-2025.csv')
 df1 = df1[["geo", "TIME_PERIOD", "OBS_VALUE"]]
 df2 = pd.read_csv('data/population_yearly_2006-2025.csv')
@@ -131,8 +144,7 @@ print(rail_passengers_per_capita_Q.head())
 # map of countries used
 # YOUR_CODE_HERE (mika)
 
-import geopandas as gpd
-import matplotlib.pyplot as plt
+
 
 url = (
     "https://raw.githubusercontent.com/nvkelso/"
@@ -203,8 +215,6 @@ plt.tight_layout()
 plt.show()
 
 #timeseries graphs for rail passenger data and fuel prices (per country)
-import plotly.graph_objects as go
-import plotly.io as pio
 
 def plot_interactive_timeseries(df, title="Time Series Overview (2006 - 2025)", y_axis_title="Waarde", renderer="jupyterlab"):
 
@@ -261,7 +271,6 @@ print(correlation)
 
 
 #Chloropleth maps function
-import plotly.express as px
 
 def plot_choropleth(data, color_scale="RdBu", value_range=None, title=None):
     data = data.copy()
@@ -271,7 +280,6 @@ def plot_choropleth(data, color_scale="RdBu", value_range=None, title=None):
     fig.update_geos(showland=True, landcolor="lightgrey")
     fig.show()
 
-import pycountry
 
 correlation.index = correlation.index.map(lambda code: pycountry.countries.get(alpha_2=code).alpha_3)
 
@@ -288,8 +296,7 @@ plot_choropleth(correlation_df, color_scale="icefire_r", value_range=(-1,1), tit
 #Choropleth map for log-log
 
 # log-log regression (Seongje)
-import numpy as np 
-import statsmodels.formula.api as smf
+
 
 # 1.yoy log changes 
 d_ln_rail = np.log(rail_passengers_per_capita_Q).diff(4, axis=1)
@@ -366,12 +373,25 @@ ax.legend(loc="lower right", fontsize=8)
 plt.tight_layout()
 plt.show()
 
+# Common colour scale for both regression maps
+all_elasticities = pd.concat([results["elasticity"] for results in country_results.values()])
+
+colour_limit = all_elasticities.abs().max()
+value_range = (-colour_limit, colour_limit)
+
+# Choropleth maps for the two regression specifications
+for name, results in country_results.items():
+    elasticity_df = results[["elasticity"]].reset_index()
+
+    elasticity_df["country"] = elasticity_df["country"].map(lambda code: pycountry.countries.get(alpha_2=code).alpha_3)
+
+    plot_choropleth(elasticity_df, color_scale="RdBu", value_range=value_range, title=f"Rail demand elasticity with respect to real fuel prices ({name})")
+
+
 
 # Historical response average change in rail demand - graph function
 
-import os
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+
 
 quarters_all = pd.period_range("2006Q1", "2025Q4", freq="Q")
 
