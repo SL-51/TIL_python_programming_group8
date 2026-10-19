@@ -36,6 +36,7 @@ df4["quarter"] = df4["date"].dt.to_period("Q")
 df4 = df4.drop(columns="date")
 df4 = df4.melt(id_vars="quarter", var_name="country", value_name="fuel_price")
 df4["country"] = df4["country"].str.replace("_price_with_tax_euro95", "", regex=False)
+df4["fuel_price"] = pd.to_numeric(df4["fuel_price"], errors="coerce") #seongje
 
 # New dataframe with averaged prices per quarter
 fuel_prices_Q = (df4.groupby(["country", "quarter"])["fuel_price"].mean().unstack())
@@ -254,29 +255,23 @@ plot_interactive_timeseries(
     y_axis_title="Euro per Liter"
 )
 
+#Correlation analysis
+correlation = rail_passengers_per_capita_Q.corrwith(real_fuel, axis=1)
+print(correlation)
+
+#Log-Log regression
+
+
+
+
+
 #Chloropleth maps function
 import plotly.express as px
 
-def plot_choropleth(data, color_scale="RdBu"):
-    data = data.reset_index()
-    data = data.rename(columns={"index": "countries"})
-
-    fig = px.choropleth(data, locations="country", locationmode="ISO-3", color=data.columns[1], color_continuous_scale=color_scale, scope="europe", title=data.columns[1], fitbounds="locations")
-    fig.update_geos(showland=True, landcolor="white")
-    fig.show()
-
-sample_data = pd.DataFrame({"correlation": [-0.45, 0.32, -0.18, 0.21, -0.56, 0.15, 0.42, -0.31, -0.12, 0.28, -0.37, 0.51, -0.24, 0.09, -0.41, -0.63, 0.34, -0.16, 0.25, -0.48, 0.11, -0.29]},index=["BG", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "IE", "IT", "LT", "LU", "LV", "NL", "PL", "PT", "RO", "SE", "SI", "SK"])
-import pycountry
-
-sample_data.index = sample_data.index.map(
-    lambda code: pycountry.countries.get(alpha_2=code).alpha_3
-)
-
-sample_data.index.name = "country"
-
-plot_choropleth(sample_data)
-#heatmaps with rail demand/population
-#YOUR_CODE_HERE
+def plot_choropleth(data, color_scale="RdBu", value_range=None, title=None):
+    data = data.copy()
+    value_column = data.columns[-1]
+    data[value_column] = pd.to_numeric(data[value_column], errors="coerce")
 
 # Historical response average change in rail demand - graph function
 
@@ -352,4 +347,102 @@ ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=2)
 plt.tight_layout()
 os.makedirs("output", exist_ok=True)
 fig_hist.savefig("output/rail_response_to_crises.png", dpi=200, bbox_inches="tight")
+plt.show()
+    fig = px.choropleth(data, locations="country", locationmode="ISO-3", color=value_column, color_continuous_scale=color_scale, range_color=value_range, scope="europe", title=title, hover_data = {value_column: ":.3f"} )
+    fig.update_geos(showland=True, landcolor="lightgrey")
+    fig.show()
+
+import pycountry
+
+correlation.index = correlation.index.map(lambda code: pycountry.countries.get(alpha_2=code).alpha_3)
+
+#Choropleth map for correlation
+correlation = pd.to_numeric(correlation, errors="coerce")
+
+correlation_df = correlation.rename("correlation").reset_index()
+correlation_df.columns = ["country", "correlation"]
+
+correlation_df["correlation"] = correlation_df["correlation"].astype(float)
+plot_choropleth(correlation_df, color_scale="icefire_r", value_range=(-1,1), title="Rail demand per capita and real fuel prices correlation")
+
+
+#Choropleth map for log-log
+
+# log-log regression (Seongje)
+import numpy as np 
+import statsmodels.formula.api as smf
+
+# 1.yoy log changes 
+d_ln_rail = np.log(rail_passengers_per_capita_Q).diff(4, axis=1)
+d_ln_fuel = np.log(real_fuel).diff(4, axis=1)
+
+# 2.df for statsmodels
+reg_df = pd.DataFrame({
+    "d_ln_rail": d_ln_rail.stack(),
+    "d_ln_fuel": d_ln_fuel.stack()
+}).reset_index()
+reg_df.columns = ["country", "quarter", "d_ln_rail", "d_ln_fuel"]
+
+# 3. covid
+covid = (reg_df["quarter"] >= pd.Period("2020Q1", "Q")) & (reg_df["quarter"] <= pd.Period("2023Q1", "Q"))
+datasets = {
+    "excl. COVID": reg_df[~covid].dropna().copy(),
+    "incl. COVID": reg_df.dropna().copy()
+}
+
+for name, data in datasets.items():
+    print(f"{name}: {len(data)} observations, {data['country'].nunique()} countries")
+
+# 4. pooled regression
+pooled_results = {}
+for name, data in datasets.items():
+    res = smf.ols("d_ln_rail ~ d_ln_fuel + C(country)", data=data).fit(
+        cov_type="cluster", cov_kwds={"groups": data["country"]})
+    ci = res.conf_int().loc["d_ln_fuel"]
+    pooled_results[name] = {"elasticity": res.params["d_ln_fuel"], "ci_low": ci[0], "ci_high": ci[1],
+                            "p_value": res.pvalues["d_ln_fuel"], "n": int(res.nobs)}
+
+pooled_compare = pd.DataFrame(pooled_results).T
+print("\nPooled regression with country fixed effects:")
+print(pooled_compare.round(3))
+
+# 5. regression per country
+def per_country_regression(data):
+    results = []
+    for c, d in data.groupby("country"):
+        res = smf.ols("d_ln_rail ~ d_ln_fuel", data=d).fit(cov_type="HAC", cov_kwds={"maxlags": 4})
+        ci = res.conf_int().loc["d_ln_fuel"]
+        results.append({"country": c, "elasticity": res.params["d_ln_fuel"],
+                        "ci_low": ci[0], "ci_high": ci[1],
+                        "p_value": res.pvalues["d_ln_fuel"], "r2": res.rsquared, "n": int(res.nobs)})
+    return pd.DataFrame(results).set_index("country")
+
+country_results = {name: per_country_regression(data) for name, data in datasets.items()}
+
+country_compare = pd.concat(country_results, axis=1)
+country_compare = country_compare.sort_values(("excl. COVID", "elasticity"))
+print("\nRegression per country:")
+print(country_compare.loc[:, (slice(None), ["elasticity", "p_value"])].round(3))
+
+# 6. plots (two versions per country + pooled)
+order = country_results["excl. COVID"].sort_values("elasticity").index
+y = np.arange(len(order))
+styles = {"excl. COVID": (-0.15, "steelblue"), "incl. COVID": (0.15, "tab:red")}
+
+fig, ax = plt.subplots(figsize=(7,9))
+for name, (offset, color) in styles.items():
+    r = country_results[name].loc[order]
+    ax.errorbar(r["elasticity"], y + offset,
+                xerr=[r["elasticity"] - r["ci_low"], r["ci_high"] - r["elasticity"]],
+                fmt="o", color=color, ecolor=color, alpha=0.8, capsize=2, markersize=4, label=name)
+    ax.axvline(pooled_compare.loc[name, "elasticity"], color=color, ls="--", lw=1,
+               label=f"Pooled ({name})")
+
+ax.axvline(0, color="black", lw=0.8)
+ax.set_yticks(y)
+ax.set_yticklabels(order)
+ax.set_xlabel("Elasticity of rail demand w.r.t. real fuel price (95% CI)")
+ax.set_title("Sensitivity of rail demand to fuel prices per country")
+ax.legend(loc="lower right", fontsize=8)
+plt.tight_layout()
 plt.show()
