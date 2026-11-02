@@ -391,13 +391,10 @@ for name, results in country_results.items():
 
 # Historical response average change in rail demand - graph function
 
-
-
 quarters_all = pd.period_range("2006Q1", "2025Q4", freq="Q")
 
 # Defining event windows: periods, colors 
 events = {"2008 financial crisis": ("2008Q3", "2009Q4"), "2014 Crimea crisis": ("2014Q3", "2015Q1"), "COVID-19": ("2020Q1", "2022Q2"), "War in Ukraine": ("2022Q1", "2023Q4")}
-event_colors = {"2008 financial crisis": "tab:orange", "2014 Crimea crisis": "tab:green", "COVID-19": "tab:grey", "War in Ukraine": "tab:red"}
 event_periods = {name: (pd.Period(s), pd.Period(e)) for name, (s, e) in events.items()}
 
 # Consistent layout for all countries over all quarters
@@ -423,42 +420,72 @@ def weighted_avg(values):
 rail_mean = weighted_avg(rail_YoY)
 fuel_mean = weighted_avg(fuel_YoY)
 
-# Average rail change inside each event
-event_avg_rail = {}
-for name, (start, end) in event_periods.items():
-    in_event = (rail_mean.index >= start) & (rail_mean.index <= end)
-    event_avg_rail[name] = rail_mean[in_event].mean()
-    print(f"{name}: rail {event_avg_rail[name]:+.1f}%, fuel price {fuel_mean[in_event].mean():+.1f}%")
-
-# Graph specifications
-x_dates = rail_mean.index.to_timestamp()
-fig_hist, ax = plt.subplots(figsize=(13, 6.5))
-ax.plot(x_dates, rail_mean, color="blue", linewidth=3.5, label="Rail passengers per capita")
-ax.plot(x_dates, fuel_mean, color="red", linewidth=2.5, label="Real fuel price")
-ax.axhline(0, color="grey", linewidth=0.8)
-
-y_min, y_max = ax.get_ylim()
-ax.set_ylim(y_min, y_max + 0.4 * (y_max - y_min))
-
-# Crisis labels
-for i, (name, (start, end)) in enumerate(event_periods.items()):
-    ax.axvspan(start.start_time, end.end_time, color=event_colors[name], alpha=0.18)
-    ax.text(start.start_time, 0.97 - 0.10 * i, f"{name}\nrail {event_avg_rail[name]:+.1f}%", transform=ax.get_xaxis_transform(), ha="left", va="top", fontsize=9)
+# Historical change plots function
+def historical_changes_plot(series, event_periods, title, color, filename):
     
-# Axis labels
-ax.set_ylabel("% change vs. same quarter last year")
-ax.set_title("Historic response of rail demand to major crises\n"
-             "(population-weighted average of 22 countries)", fontsize=13, fontweight="bold")
+    # Separate figure for the variable
+    fig, ax = plt.subplots(figsize=(13, 7))
+    
+    ax.plot(series.index.to_timestamp(), series, color=color, linewidth=2.5, zorder = 3)
+    ax.axhline(0, color="grey", linewidth=0.8)
+    
+    # Event labels space
+    y_min, y_max = ax.get_ylim()
+    ax.set_ylim(y_min, y_max + 0.6 * (y_max - y_min))
+    
+    for name, (start, end) in event_periods.items():
+        ax.axvspan(start.start_time, end.end_time, color="grey", alpha=0.15, zorder=0)
+        
+        # YoY changes within the event window
+        in_event = (series.index >= start) & (series.index <= end)
+        event_avg = series.loc[in_event].mean()
+        
+        avg_label = (
+            f"{event_avg:+.1f}"
+            if pd.notna(event_avg)
+            else "no data"
+        )
+        
+        ax.text(start.start_time, 0.98, f"{name}: {avg_label}", transform=ax.get_xaxis_transform(), rotation=90, ha="left", va="top", fontsize=9)
+    
+    # Time range and yearly date markers
+    ax.set_xlim(series.index.min().start_time, series.index.max().end_time)
+    ax.xaxis.set_major_locator(mdates.YearLocator(1))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    
+    ax.set_ylabel("Year-over-year (%)")
+    ax.set_title(f"{title}\n(Population-weighted average across {len(country_codes)} countries)", fontsize=13, fontweight="bold")
+    ax.grid(alpha=0.3)
+    ax.set_axisbelow(True)
+    
+    # Figure layout
+    fig.tight_layout()
+    
+    # Export to png
+    os.makedirs("images", exist_ok=True)
+    save_path = os.path.abspath(os.path.join("images", filename))
+    fig.savefig(save_path, dpi=200, bbox_inches="tight")
+    
+    plt.show()
+    
+    return fig, ax
 
-# X-axis markers
-ax.xaxis.set_major_locator(mdates.YearLocator(1))
-ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-ax.grid(alpha=0.3)
+# Graphs with calls to the function
 
-# Legend
-ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=2)
+# Changes in rail passenger trips per capita graph
+fig_rail, ax_rail = historical_changes_plot(
+    series=rail_mean,
+    event_periods=event_periods,
+    title="Year-over-year changes in rail passenger trips per capita",
+    color="blue",
+    filename="rail_demand_changes.png"
+)
 
-plt.tight_layout()
-os.makedirs("output", exist_ok=True)
-fig_hist.savefig("output/rail_response_to_crises.png", dpi=200, bbox_inches="tight")
-plt.show() 
+# Changes in inflation-adjusted Euro95 prices
+fig_fuel, ax_fuel = historical_changes_plot(
+    series=fuel_mean,
+    event_periods=event_periods,
+    title="Year-over-year changes in real Euro95 fuel prices",
+    color="red",
+    filename="real_fuel_price_changes.png"
+)
