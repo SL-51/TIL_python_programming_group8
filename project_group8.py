@@ -266,7 +266,53 @@ plot_interactive_timeseries(
 )
 
 #Correlation analysis
-correlation = rail_passengers_per_capita_Q.corrwith(real_fuel, axis=1)
+def plot_correlation_groups(rail_data, fuel_data, n=3):
+    # Calculate correlations for each country
+    correlation = rail_data.corrwith(fuel_data, axis=1).dropna()
+
+    # Select countries for each group
+    groups = {"Most positive": correlation.nlargest(n),
+        "Most negative": correlation.nsmallest(n),
+        "Closest to zero": correlation.abs().nsmallest(n)}
+    
+    output_folder = "images"
+    os.makedirs(output_folder, exist_ok=True)
+
+    for group_name, group_corr in groups.items():
+        fig, axes = plt.subplots(1, n, figsize=(15, 5))
+        axes = np.atleast_1d(axes)
+
+        for ax, (country, r) in zip(axes, group_corr.items()):
+            data = pd.concat([
+                fuel_data.loc[country].rename("fuel"),
+                rail_data.loc[country].rename("rail")
+            ], axis=1).dropna()
+
+            x = data["fuel"].to_numpy(dtype=float)
+            y = data["rail"].to_numpy(dtype=float)
+
+            ax.scatter(x, y, alpha=0.6, s=20)
+
+            if len(x) >= 2 and np.ptp(x) > 0:
+                slope, intercept = np.polyfit(x, y, 1)
+                x_line = np.linspace(x.min(), x.max(), 100)
+                ax.plot(x_line, slope * x_line + intercept, color="red")
+
+            ax.set_title(f"{country} (r = {r:.3f})", fontsize=11)
+            ax.set_xlabel("Real fuel price")
+            ax.set_ylabel("Rail passengers per capita")
+            ax.grid(alpha=0.25)
+
+        fig.suptitle(group_name, fontsize=15, fontweight="bold")
+        fig.tight_layout(rect=[0, 0, 1, 0.96], h_pad=2.5, w_pad=1.5)
+        filename = group_name.lower().replace(" ", "_") + ".png"
+        fig.savefig(os.path.join(output_folder, filename), dpi=300, bbox_inches="tight")
+        plt.show()
+
+    return correlation
+
+
+correlation = plot_correlation_groups(rail_passengers_per_capita_Q, real_fuel)
 print(correlation)
 
 
