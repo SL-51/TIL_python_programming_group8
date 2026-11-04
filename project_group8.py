@@ -2,7 +2,6 @@
 
 #Import necessary packages
 import pandas as pd
-import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -13,16 +12,18 @@ import statsmodels.formula.api as smf
 import os
 import matplotlib.dates as mdates
 
-# Grographical scope - EU-27 country codes (except Latvia and Malta)
+# Geographical scope - EU-27 country codes (except Latvia and Malta)
 country_codes = ["BG", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "IE", "IT", "LT", "LU", "LV", "NL", "PL", "PT", "RO", "SE", "SI", "SK"]
 name_to_code = {"Bulgaria": "BG", "Czechia": "CZ", "Germany": "DE", "Denmark": "DK", "Estonia": "EE", "Spain": "ES", "Finland": "FI", "France": "FR", "Greece": "GR", "Croatia": "HR", "Ireland": "IE", "Italy": "IT", "Lithuania": "LT", "Luxembourg": "LU", "Latvia": "LV", "Netherlands": "NL", "Poland": "PL", "Portugal": "PT", "Romania": "RO", "Sweden": "SE", "Slovenia": "SI", "Slovakia": "SK",}
 
 #Import datasets
 def csv_file(path, name_to_code):
+    
     df = pd.read_csv(path)
     df = df[["geo", "TIME_PERIOD", "OBS_VALUE"]]
     df["country"] = df["geo"].map(name_to_code)
     df = df[df["country"].isin(country_codes)].copy()
+
     return df
 
 df1 = csv_file('data/rail_passengers_quarters_2006-2025.csv', name_to_code)
@@ -75,10 +76,6 @@ df3 = df3.dropna(subset=['date'])
 # Filter only months of 2006-2025
 df3 = df3[(df3["date"].dt.year >= 2006) & (df3["date"].dt.year <= 2025)].copy()
 
-# # Change the country names to codes
-# df3["country"] = df3["geo"].map(name_to_code)
-# df3 = df3[df3["country"].isin(country_codes)].copy()
-
 # Change months to quarters
 df3["quarter"] = df3["date"].dt.to_period("Q")
 
@@ -98,11 +95,6 @@ df2["year"] = df2["year"].astype(int)
 # Filter only years 2006-2025
 df2 = df2[(df2["year"] >= 2006) & (df2["year"] <= 2025)].copy()
 
-# # Change the country names to codes
-# df2["country"] = df2["geo"].map(name_to_code)
-# df2 = df2[df2["country"].isin(country_codes)].copy()
-# df2 = df2.drop(columns="geo")
-
 # Change years to quarters (yearly population is repeated for each quarter)
 population_quarters = pd.DataFrame({"quarter": pd.period_range("2006Q1", "2025Q4", freq="Q")})
 population_quarters["year"] = population_quarters["quarter"].dt.year
@@ -112,18 +104,12 @@ population_Q = population_quarters.merge(df2, on="year", how="left")
 population_Q = (population_Q.groupby(["country", "quarter"])["population"].mean().unstack())
 
 
-
 # Rail passengers dataset preparation
 df1 = df1.rename(columns={"TIME_PERIOD": "quarter", "OBS_VALUE": "rail_passengers"})
 
 # Filter only quarters of 2006-2025
 df1["quarter"] = pd.PeriodIndex(df1["quarter"].str.replace("-", "", regex=False), freq="Q")
 df1 = df1[(df1["quarter"].dt.year >= 2006) & (df1["quarter"].dt.year <=2025)].copy()
-
-# change the country names to codes
-# df1["country"] = df1["geo"].map(name_to_code)
-# df1 = df1[df1["country"].isin(country_codes)].copy()
-# df1 = df1.drop(columns="geo")
 
 # New dataframe with rail passengers per quarter
 rail_passengers_Q = (df1.groupby(["country", "quarter"])["rail_passengers"].mean().unstack())
@@ -133,84 +119,31 @@ rail_passengers_Q = rail_passengers_Q * 1000
 rail_passengers_per_capita_Q = rail_passengers_Q / population_Q # this value is the number of trips per person per quarter
 
 
+#Chloropleth maps function
+
+def plot_choropleth(data, color_scale="RdBu", value_range=None, title=None, showscale=True):
+    data = data.copy()
+    value_column = data.columns[-1]
+    data[value_column] = pd.to_numeric(data[value_column], errors="coerce")
+    fig = px.choropleth(data, locations="country", locationmode="ISO-3", color=value_column, color_continuous_scale=color_scale, range_color=value_range, scope="europe", title=title, hover_data = {value_column: ":.3f"} )
+    fig.update_geos(showland=True, landcolor="lightgrey")
+    fig.update_coloraxes(showscale=showscale)
+    fig.show()
 
 
-# map of countries used
-# YOUR_CODE_HERE (mika)
+
+# Geographical scope map
+map_df = pd.DataFrame({"country": country_codes})
+map_df["country"] = map_df["country"].map(lambda code: pycountry.countries.get(alpha_2=code).alpha_3)
+map_df["selected"] = 1
+
+plot_choropleth(map_df, color_scale=["lightgrey", "steelblue"], value_range=(0, 1), title="Geographical Scope of the Analysis", showscale=False)
 
 
 
-url = (
-    "https://raw.githubusercontent.com/nvkelso/"
-    "natural-earth-vector/master/geojson/"
-    "ne_110m_admin_0_countries.geojson"
-)
+#Timeseries graphs for rail passenger data and fuel prices (per country)
 
-world = gpd.read_file(url)
-
-selected_countries = [
-    "Bulgaria",
-    "Czech Republic",
-    "Denmark",
-    "Germany",
-    "Estonia",
-    "Ireland",
-    "Greece",
-    "Spain",
-    "France",
-    "Croatia",
-    "Italy",
-    "Latvia",
-    "Lithuania",
-    "Luxembourg",
-    "Netherlands",
-    "Poland",
-    "Portugal",
-    "Romania",
-    "Slovenia",
-    "Slovakia",
-    "Finland",
-    "Sweden"
-]
-
-selected = world[world["NAME_EN"].isin(selected_countries)]
-
-print("Number of selected countries:", len(selected))
-
-fig, ax = plt.subplots(figsize=(12, 9))
-
-world.plot(
-    ax=ax,
-    color="lightgrey",
-    edgecolor="white",
-    linewidth=0.6
-)
-
-selected.plot(
-    ax=ax,
-    color="steelblue",
-    edgecolor="black",
-    linewidth=0.8
-)
-
-ax.set_xlim(-12, 40)
-ax.set_ylim(34, 72)
-
-ax.set_title(
-    "Selected European Countries",
-    fontsize=18,
-    fontweight="bold",
-    pad=15
-)
-
-ax.set_axis_off()
-
-plt.tight_layout()
-plt.show()
-
-#timeseries graphs for rail passenger data and fuel prices (per country)
-
-def plot_interactive_timeseries(df, title="Time Series Overview (2006 - 2025)", y_axis_title="Waarde", renderer="jupyterlab"):
+def plot_interactive_timeseries(df, title="Time Series Overview (2006 - 2025)", y_axis_title="Value", renderer="jupyterlab"):
 
     pio.renderers.default = "browser"
     if isinstance(df.columns, pd.PeriodIndex) or any("Q" in str(col) for col in df.columns):
@@ -222,7 +155,7 @@ def plot_interactive_timeseries(df, title="Time Series Overview (2006 - 2025)", 
    
     fig = go.Figure()
 
-    # Background (grey lines
+    # Background (grey lines)
     for country in df_plot.columns:
         fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot[country], mode='lines', line=dict(color='#E5E7EB', width=1.5), hoverinfo='skip', showlegend=False))
 
@@ -235,9 +168,9 @@ def plot_interactive_timeseries(df, title="Time Series Overview (2006 - 2025)", 
 
     fig.update_layout(title=dict(text=f"<b>{title}</b>", x=0.0, xanchor="left", y=0.96),
         template="plotly_white", hovermode="closest",
-        xaxis=dict(title="Kwartaal", tickangle=-45, nticks=20, showgrid=True, gridcolor="#F3F4F6"),
+        xaxis=dict(title="Quarter", tickangle=-45, nticks=20, showgrid=True, gridcolor="#F3F4F6"),
         yaxis=dict(title=y_axis_title, showgrid=True, gridcolor="#F3F4F6"),
-        legend=dict(title=dict(text="<b>Landen</b> (klik = aan/uit)<br><sub>Dubbelklik = isoleer</sub>"), itemclick="toggle", itemdoubleclick="toggleothers", traceorder="normal"),
+        legend=dict(title=dict(text="<b>Countries</b> (click = on/off)<br><sub>Double-click = isolate</sub>"), itemclick="toggle", itemdoubleclick="toggleothers", traceorder="normal"),
         updatemenus=[dict(type="buttons",direction="left", x=1.0, y=1.15, xanchor="right", yanchor="bottom",
         buttons=[dict(label="Select everything", method="restyle", args=[{"visible": [True] * n_countries}, list(range(n_countries, 2 * n_countries))]), dict(label="Deselect everything", method="restyle",
         args=[{"visible": ["legendonly"] * n_countries}, list(range(n_countries, 2 * n_countries))])])],
@@ -259,7 +192,8 @@ plot_interactive_timeseries(
     y_axis_title="Euro per Liter"
 )
 
-#Correlation analysis
+
+# Correlation analysis
 def plot_correlation_groups(rail_data, fuel_data, n=3):
     # Calculate correlations for each country
     correlation = rail_data.corrwith(fuel_data, axis=1).dropna()
@@ -307,49 +241,31 @@ def plot_correlation_groups(rail_data, fuel_data, n=3):
 
 
 correlation = plot_correlation_groups(rail_passengers_per_capita_Q, real_fuel)
-print(correlation)
-
-
-#Chloropleth maps function
-
-def plot_choropleth(data, color_scale="RdBu", value_range=None, title=None):
-    data = data.copy()
-    value_column = data.columns[-1]
-    data[value_column] = pd.to_numeric(data[value_column], errors="coerce")
-    fig = px.choropleth(data, locations="country", locationmode="ISO-3", color=value_column, color_continuous_scale=color_scale, range_color=value_range, scope="europe", title=title, hover_data = {value_column: ":.3f"} )
-    fig.update_geos(showland=True, landcolor="lightgrey")
-    fig.show()
-
 
 correlation.index = correlation.index.map(lambda code: pycountry.countries.get(alpha_2=code).alpha_3)
 
 #Choropleth map for correlation
 correlation = pd.to_numeric(correlation, errors="coerce")
-
 correlation_df = correlation.rename("correlation").reset_index()
 correlation_df.columns = ["country", "correlation"]
-
 correlation_df["correlation"] = correlation_df["correlation"].astype(float)
 plot_choropleth(correlation_df, color_scale="icefire_r", value_range=(-1,1), title="Rail demand per capita and real fuel prices correlation")
 
 
-#Choropleth map for log-log
+# Log-Log Regression
 
-# log-log regression (Seongje)
-
-
-# 1.yoy log changes 
+# Calculate year-on-year log changes 
 d_ln_rail = np.log(rail_passengers_per_capita_Q).diff(4, axis=1)
 d_ln_fuel = np.log(real_fuel).diff(4, axis=1)
 
-# 2.df for statsmodels
+# Dataframe for statsmodels
 reg_df = pd.DataFrame({
     "d_ln_rail": d_ln_rail.stack(),
     "d_ln_fuel": d_ln_fuel.stack()
 }).reset_index()
 reg_df.columns = ["country", "quarter", "d_ln_rail", "d_ln_fuel"]
 
-# 3. covid
+# Specify COVID-19 period
 covid = (reg_df["quarter"] >= pd.Period("2020Q1", "Q")) & (reg_df["quarter"] <= pd.Period("2023Q1", "Q"))
 datasets = {
     "excl. COVID": reg_df[~covid].dropna().copy(),
@@ -359,8 +275,9 @@ datasets = {
 for name, data in datasets.items():
     print(f"{name}: {len(data)} observations, {data['country'].nunique()} countries")
 
-# 4. pooled regression
+# Estimate pooled regression
 pooled_results = {}
+
 for name, data in datasets.items():
     res = smf.ols("d_ln_rail ~ d_ln_fuel + C(country)", data=data).fit(
         cov_type="cluster", cov_kwds={"groups": data["country"]})
@@ -372,17 +289,21 @@ pooled_compare = pd.DataFrame(pooled_results).T
 print("\nPooled regression with country fixed effects:")
 print(pooled_compare.round(3))
 
-# 5. regression per country
+# Regression per country
 def per_country_regression(data):
     results = []
-    for c, d in data.groupby("country"):
-        res = smf.ols("d_ln_rail ~ d_ln_fuel", data=d).fit(cov_type="HAC", cov_kwds={"maxlags": 4})
-        ci = res.conf_int().loc["d_ln_fuel"]
-        results.append({"country": c, "elasticity": res.params["d_ln_fuel"],
+    
+    for country, country_data in data.groupby("country"):
+        country_data = country_data.sort_values("quarter")
+        model = smf.ols("d_ln_rail ~ d_ln_fuel", data=country_data).fit(cov_type="HAC", cov_kwds={"maxlags": 4})
+        ci = model.conf_int().loc["d_ln_fuel"]
+        results.append({"country": country, "elasticity": model.params["d_ln_fuel"],
                         "ci_low": ci[0], "ci_high": ci[1],
-                        "p_value": res.pvalues["d_ln_fuel"], "r2": res.rsquared, "n": int(res.nobs)})
+                        "p_value": model.pvalues["d_ln_fuel"], "r2": model.rsquared, "n": int(model.nobs)})
+    
     return pd.DataFrame(results).set_index("country")
 
+#Estimate regression specifications
 country_results = {name: per_country_regression(data) for name, data in datasets.items()}
 
 country_compare = pd.concat(country_results, axis=1)
@@ -390,9 +311,10 @@ country_compare = country_compare.sort_values(("excl. COVID", "elasticity"))
 print("\nRegression per country:")
 print(country_compare.loc[:, (slice(None), ["elasticity", "p_value"])].round(3))
 
-# 6. plots (two versions per country + pooled)
+# Regression plots (two versions per country + pooled)
 order = country_results["excl. COVID"].sort_values("elasticity").index
 y = np.arange(len(order))
+
 styles = {"excl. COVID": (-0.15, "steelblue"), "incl. COVID": (0.15, "tab:red")}
 
 fig, ax = plt.subplots(figsize=(7,9))
@@ -434,7 +356,11 @@ for name, results in country_results.items():
 quarters_all = pd.period_range("2006Q1", "2025Q4", freq="Q")
 
 # Defining event windows: periods, colors 
-events = {"2008 financial crisis": ("2008Q3", "2009Q4"), "2014 Crimea crisis": ("2014Q3", "2015Q1"), "COVID-19": ("2020Q1", "2022Q2"), "War in Ukraine": ("2022Q1", "2023Q4")}
+events = {
+    "2008 financial crisis": ("2008Q3", "2009Q4"),
+    "2014 Crimea crisis": ("2014Q3", "2015Q1"),
+    "COVID-19": ("2020Q1", "2022Q2"),
+    "War in Ukraine": ("2022Q1", "2023Q4")}
 event_periods = {name: (pd.Period(s), pd.Period(e)) for name, (s, e) in events.items()}
 
 # Consistent layout for all countries over all quarters
@@ -443,7 +369,7 @@ price_index_Q = inflation_Q.reindex(index=country_codes, columns=quarters_all)
 rail_per_capita_Q = rail_passengers_per_capita_Q.reindex(index=country_codes, columns=quarters_all)
 pop_Q = population_Q.reindex(index=country_codes, columns=quarters_all)
 
-# Real fuel price calculation with price index base = 100
+# Real fuel price calculation adjusted for inflation (price index base = 100)
 real_fuel_Q = fuel_nominal_Q / (price_index_Q / 100) 
 
 # Year-over-year % change calculation
@@ -510,9 +436,8 @@ def historical_changes_plot(series, event_periods, title, color, filename):
     
     return fig, ax
 
-# Graphs with calls to the function
 
-# Changes in rail passenger trips per capita graph
+# Year-on-year changes in rail passenger trips per capita graph
 fig_rail, ax_rail = historical_changes_plot(
     series=rail_mean,
     event_periods=event_periods,
