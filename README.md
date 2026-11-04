@@ -16,10 +16,10 @@ The main branch of the repository contains the following folders:
 - Images: All the output images from the code that are used in the final report
 
 Then in the main folder there are also the following separate files:
-- Project plan and division: Preliminary plan and task devision
 - final notebook: The final report in notebook format
 - group8_project_proposal: The project proposal
 - project_group8: The complete code for the whole assignment. It is well structured using comments and functions and includes all code used.
+- This README file
 
 **Pipeline**
 
