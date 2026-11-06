@@ -199,9 +199,9 @@ def plot_correlation_groups(rail_data, fuel_data, n=3):
     correlation = rail_data.corrwith(fuel_data, axis=1).dropna()
 
     # Select countries for each group
-    groups = {"Most positive": correlation.nlargest(n),
-        "Most negative": correlation.nsmallest(n),
-        "Closest to zero": correlation.abs().nsmallest(n)}
+    groups = {"Most positive correlation values between fuel prices and rail demand": correlation.nlargest(n),
+        "Most negative correlation values between fuel prices and rail demand": correlation.nsmallest(n),
+        "Closest to zero correlation values between fuel prices and rail demand": correlation.abs().nsmallest(n)}
     
     output_folder = "images"
     os.makedirs(output_folder, exist_ok=True)
@@ -233,7 +233,7 @@ def plot_correlation_groups(rail_data, fuel_data, n=3):
 
         fig.suptitle(group_name, fontsize=15, fontweight="bold")
         fig.tight_layout(rect=[0, 0, 1, 0.96], h_pad=2.5, w_pad=1.5)
-        filename = group_name.lower().replace(" ", "_") + ".png"
+        filename = "_".join(group_name.lower().split()[:3]) + ".png"
         fig.savefig(os.path.join(output_folder, filename), dpi=300, bbox_inches="tight")
         plt.show()
 
