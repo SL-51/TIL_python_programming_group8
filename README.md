@@ -9,7 +9,7 @@
 
 **Date:** 06.11.2026
 
-**Branch explanation** 
+**Repository explanation** 
 
 This repository contains the following folders:
 - **Data/**: Contains all downloaded datasets used in the analysis (see more in the "Datasets" section).
@@ -17,7 +17,9 @@ This repository contains the following folders:
 
 The root directory also contain the following files:
 - **final_notebook.ipynb**: The final report in Jupyter Notebook format.
-- **group8_project_proposal.ipynb**: The project proposal.
+- **final_notebook.html**: The final report in HTML format.
+- **group8_project_proposal.ipynb**: The project proposal in Jupyter Notebook format.
+- **group8_project_proposal.html**: The project proposal in HTML format.
 - **project_group8.py**: The complete Python script containing the data preparation, analysis and visualation pipeline. It is well structured using comments and functions and includes all code used.
 - **README.md**: This file, providing project information and instructions for reproducing the analysis.
 
@@ -29,7 +31,7 @@ In order to reproduce the analysis and generate the outputs presented in the fin
 3. Make sure that the original datasets are available in the Data/ folder.
 4. Open and run project_group8.py from the repositoriy's root directory.
 
-The script reads the datasets, performs the data preparation and analysis and generates the corresponding figures. The script should be executed from the repository's root directory to ensure that the relative paths work correctly
+The script reads the datasets, performs the data preparation and analysis and generates the corresponding figures. The script should be executed from the repository's root directory to ensure that the relative paths work correctly.
 
 **Required Packages**
 
@@ -42,12 +44,13 @@ The following Python packages are required:
 - statsmodels
 - openpyxl
 
-The os and matplotlib.dates modules are included with Python and Matplotlib, respectively, and do not require separate installation.
 
 **Datasets**
 
 All data is publicly available and standardized across EU countries. The analysis uses quarterly data from 2006 to 2025. 
+
 Rail passenger demand is expressed per inhabitant to account for differences in country size and population changes. Since population is only available annually, the same value is used for all four quarters of a year. 
+
 Fuel prices are converted to real prices by dividing by the general price index so that long-term inflation does not distort the comparison.
 The datasets used are summarised below:
 
